@@ -12,12 +12,12 @@ fn main() {
                         break;
                     }
                     _ => {
-                        print(&buf[..2]);
+                        p(&buf[..2]);
                     }
                 }
             }
             Ok(n) => {
-                print(&buf[..n])
+                p(&buf[..n])
             }
             Err(e) => {
                 eprintln!("error: {}", e);
@@ -27,8 +27,6 @@ fn main() {
     }
 }
 
-fn print(buf: &[u8]) {
-    for b in buf {
-        print!("{}", *b as char);
-    }
+fn p(buf: &[u8]) {
+    println!("{}", String::from_utf8_lossy(buf));
 }

@@ -1,32 +1,67 @@
-use std::io::{Read, stdin};
+use std::{io::stdout, time::Duration};
 
-fn main() {
-    let mut buf = [0; 1024];
+use anyhow::Result;
+use crossterm::{
+    cursor::position,
+    event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode},
+};
+use futures::{future::FutureExt, select, StreamExt};
+use futures_timer::Delay;
+
+const HELP: &str = r#"EventStream based on futures_util::Stream with tokio
+ - Keyboard, mouse and terminal resize events enabled
+ - Prints "." every second if there's no event
+ - Hit "c" to print current cursor position
+ - Use Esc to quit
+"#;
+
+async fn print_events() {
+    let mut reader = EventStream::new();
+
     loop {
-        let result = stdin().read(&mut buf);
-        match result {
-            Ok(0) => break,
-            Ok(2) => {
-                match (&buf[..1])[0] as char {
-                    'q' => {
-                        break;
+        let mut delay = Delay::new(Duration::from_millis(1_000)).fuse();
+        let mut event = reader.next().fuse();
+
+        select! {
+            _ = delay => { println!(".\r"); },
+            maybe_event = event => {
+                match maybe_event {
+                    Some(Ok(event)) => {
+                        println!("Event::{:?}\r", event);
+
+                        if event == Event::Key(KeyCode::Char('c').into()) {
+                            println!("Cursor position: {:?}\r", position());
+                        }
+
+                        if event == Event::Key(KeyCode::Esc.into()) {
+                            break;
+                        }
                     }
-                    _ => {
-                        p(&buf[..2]);
-                    }
+                    Some(Err(e)) => println!("Error: {:?}\r", e),
+                    None => break,
                 }
             }
-            Ok(n) => {
-                p(&buf[..n])
-            }
-            Err(e) => {
-                eprintln!("error: {}", e);
-                break;
-            }
         }
+        ;
     }
 }
 
-fn p(buf: &[u8]) {
-    println!("{}", String::from_utf8_lossy(buf));
+#[tokio::main]
+async fn main() -> Result<()> {
+    println!("{}", HELP);
+
+    enable_raw_mode()?;
+
+    let mut stdout = stdout();
+    execute!(stdout, EnableMouseCapture)?;
+
+    print_events().await;
+
+    execute!(stdout, DisableMouseCapture)?;
+
+    disable_raw_mode()?;
+
+    Ok(())
 }

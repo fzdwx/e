@@ -7,7 +7,26 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use crossterm::event::{KeyEvent, KeyModifiers};
+use crossterm::terminal::{Clear, ClearType};
 use futures::{future::FutureExt, StreamExt};
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    println!("{}", HELP);
+
+    enable_raw_mode()?;
+
+    let mut stdout = stdout();
+    execute!(stdout, EnableMouseCapture)?;
+
+    print_events().await?;
+
+    execute!(stdout, DisableMouseCapture)?;
+
+    disable_raw_mode()?;
+
+    Ok(())
+}
 
 const HELP: &str = r#"EventStream based on futures_util::Stream with tokio
  - Keyboard, mouse and terminal resize events enabled
@@ -15,7 +34,7 @@ const HELP: &str = r#"EventStream based on futures_util::Stream with tokio
  - Use "q" to quit
 "#;
 
-async fn print_events() {
+async fn print_events() -> Result<()> {
     let mut reader = EventStream::new();
 
     loop {
@@ -28,6 +47,8 @@ async fn print_events() {
             None => break,
         }
     }
+
+    Ok(())
 }
 
 async fn dispatch_event(event: Event) -> bool {
@@ -52,22 +73,4 @@ async fn dispatch_event(event: Event) -> bool {
     }
 
     false
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    println!("{}", HELP);
-
-    enable_raw_mode()?;
-
-    let mut stdout = stdout();
-    execute!(stdout, EnableMouseCapture)?;
-
-    print_events().await;
-
-    execute!(stdout, DisableMouseCapture)?;
-
-    disable_raw_mode()?;
-
-    Ok(())
 }

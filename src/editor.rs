@@ -12,15 +12,17 @@ use crossterm::event::{KeyEvent, KeyModifiers};
 use crossterm::terminal::{Clear, ClearType, EnterAlternateScreen, window_size};
 use futures::{future::FutureExt, StreamExt};
 
+use crate::cursor;
+
 pub struct Editor {
-    cursor: Cursor,
+    cursor: cursor::Cursor,
     fd: std::io::Stdout,
 }
 
 impl Default for Editor {
     fn default() -> Self {
         Self {
-            cursor: Cursor { x: 0, y: 0 },
+            cursor: cursor::Cursor { x: 0, y: 0 },
             fd: stdout(),
         }
     }
@@ -47,7 +49,7 @@ impl Editor {
             self.refresh_screen().await?;
             match event.await {
                 Some(Ok(event)) => {
-                    if self.dispatch_event(event).await {
+                    if self.dispatch_event(event).await? {
                         break;
                     }
                 }
@@ -59,8 +61,7 @@ impl Editor {
         Ok(())
     }
 
-
-    async fn dispatch_event(&mut self, event: Event) -> bool {
+    async fn dispatch_event(&mut self, event: Event) -> Result<bool> {
         match event {
             Event::Key(k) => match k {
                 KeyEvent {
@@ -69,27 +70,19 @@ impl Editor {
                     kind: _,
                     state: _,
                 } => {
-                    return true;
+                    return Ok(true);
                 }
-                KeyEvent {
-                    code: KeyCode::Char('c'),
-                    modifiers: _,
-                    kind: _,
-                    state: _,
-                } => {
-                    let (x, y) = crossterm::cursor::position().unwrap();
-                    println!("Cursor position: x={}, y={}\r", x, y);
-                }
-                _ => {
-                    println!("Event::{:?}\r", k);
-                }
+
+                _ => {}
             },
-            _ => {
-                println!("Event::{:?}\r", event);
-            }
+            _ => {}
         }
 
-        false
+        if self.cursor.react(event).await? {
+            return Ok(true);
+        }
+
+        Ok(false)
     }
 
     async fn refresh_screen(&mut self) -> Result<()> {
@@ -98,7 +91,7 @@ impl Editor {
 
         self.draw_rows().await?;
 
-        execute!(self.fd, MoveTo(0, 0))?;
+        execute!(self.fd, MoveTo(self.cursor.x, self.cursor.y))?;
         execute!(self.fd, Show)?;
 
         Ok(())
@@ -132,7 +125,6 @@ impl Editor {
         Ok(())
     }
 
-
     async fn init_screen(&mut self) -> Result<()> {
         enable_raw_mode()?;
         execute!(self.fd, EnterAlternateScreen)?;
@@ -146,9 +138,4 @@ impl Editor {
         disable_raw_mode()?;
         Ok(())
     }
-}
-
-struct Cursor {
-    x: usize,
-    y: usize,
 }

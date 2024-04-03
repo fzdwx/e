@@ -1,51 +1,57 @@
-use std::{io::stdout, time::Duration};
+use std::io::stdout;
 
 use anyhow::Result;
 use crossterm::{
-    cursor::position,
     event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use futures::{future::FutureExt, select, StreamExt};
-use futures_timer::Delay;
+use crossterm::event::{KeyEvent, KeyModifiers};
+use futures::{future::FutureExt, StreamExt};
 
 const HELP: &str = r#"EventStream based on futures_util::Stream with tokio
  - Keyboard, mouse and terminal resize events enabled
- - Prints "." every second if there's no event
  - Hit "c" to print current cursor position
- - Use Esc to quit
+ - Use "q" to quit
 "#;
 
 async fn print_events() {
     let mut reader = EventStream::new();
 
     loop {
-        let mut delay = Delay::new(Duration::from_millis(1_000)).fuse();
-        let mut event = reader.next().fuse();
+        let event = reader.next().fuse();
+        match event.await {
+            Some(Ok(event)) => {
+                if dispatch_event(event).await { break; }
+            }
+            Some(Err(e)) => println!("Error: {:?}\r", e),
+            None => break,
+        }
+    }
+}
 
-        select! {
-            _ = delay => { println!(".\r"); },
-            maybe_event = event => {
-                match maybe_event {
-                    Some(Ok(event)) => {
-                        println!("Event::{:?}\r", event);
-
-                        if event == Event::Key(KeyCode::Char('c').into()) {
-                            println!("Cursor position: {:?}\r", position());
-                        }
-
-                        if event == Event::Key(KeyCode::Esc.into()) {
-                            break;
-                        }
-                    }
-                    Some(Err(e)) => println!("Error: {:?}\r", e),
-                    None => break,
+async fn dispatch_event(event: Event) -> bool {
+    match event {
+        Event::Key(k) => {
+            match k {
+                KeyEvent { code: KeyCode::Char('q'), modifiers: KeyModifiers::NONE, kind: _, state: _ } => {
+                    return true;
+                }
+                KeyEvent { code: KeyCode::Char('c'), modifiers: _, kind: _, state: _ } => {
+                    let (x, y) = crossterm::cursor::position().unwrap();
+                    println!("Cursor position: x={}, y={}\r", x, y);
+                }
+                _ => {
+                    println!("Event::{:?}\r", k);
                 }
             }
         }
-        ;
+        _ => {
+            println!("Event::{:?}\r", event);
+        }
     }
+
+    false
 }
 
 #[tokio::main]

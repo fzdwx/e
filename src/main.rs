@@ -2,14 +2,14 @@ use std::io::stdout;
 use std::io::Write;
 
 use anyhow::Result;
-use crossterm::cursor::MoveTo;
-use crossterm::event::{KeyEvent, KeyModifiers};
-use crossterm::terminal::{window_size, Clear, ClearType, EnterAlternateScreen};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode},
 };
+use crossterm::cursor::{Hide, MoveTo, Show};
+use crossterm::event::{KeyEvent, KeyModifiers};
+use crossterm::terminal::{Clear, ClearType, EnterAlternateScreen, window_size};
 use futures::{future::FutureExt, StreamExt};
 
 #[tokio::main]
@@ -83,26 +83,37 @@ async fn init_screen() -> Result<()> {
 }
 
 async fn exit_screen() -> Result<()> {
-    execute!(stdout(), DisableMouseCapture)?;
-    execute!(stdout(), Clear(ClearType::All))?;
+    let mut fd = stdout();
+
+    execute!(fd, DisableMouseCapture)?;
+    execute!(fd, Clear(ClearType::All))?;
     disable_raw_mode()?;
     Ok(())
 }
 
 async fn refresh_screen() -> Result<()> {
-    execute!(stdout(), Clear(ClearType::All))?;
-    execute!(stdout(), MoveTo(0, 0))?;
+    let mut fd = stdout();
+
+    execute!(fd, Hide)?;
+    execute!(fd, MoveTo(0, 0))?;
 
     draw_rows().await?;
-    execute!(stdout(), MoveTo(0, 0))?;
+
+    execute!(fd, MoveTo(0, 0))?;
+    execute!(fd, Show)?;
 
     Ok(())
 }
 
 async fn draw_rows() -> Result<()> {
     let size = window_size()?;
-    for _ in 0..size.rows {
-        write!(stdout(), "~\r\n")?;
+    for y in 0..size.rows {
+        write!(stdout(), "~")?;
+        execute!(stdout(),Clear(ClearType::UntilNewLine))?;
+
+        if y < size.rows - 1 {
+            write!(stdout(), "\r\n")?;
+        }
     }
 
     Ok(())

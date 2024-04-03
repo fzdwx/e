@@ -2,14 +2,14 @@ use std::io::stdout;
 use std::io::Write;
 
 use anyhow::Result;
+use crossterm::cursor::{Hide, MoveTo, Show};
+use crossterm::event::{KeyEvent, KeyModifiers};
+use crossterm::terminal::{window_size, Clear, ClearType, EnterAlternateScreen};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use crossterm::cursor::{Hide, MoveTo, Show};
-use crossterm::event::{KeyEvent, KeyModifiers};
-use crossterm::terminal::{Clear, ClearType, EnterAlternateScreen, window_size};
 use futures::{future::FutureExt, StreamExt};
 
 #[tokio::main]
@@ -107,12 +107,26 @@ async fn refresh_screen() -> Result<()> {
 
 async fn draw_rows() -> Result<()> {
     let size = window_size()?;
+    let mut fd = stdout();
     for y in 0..size.rows {
-        write!(stdout(), "~")?;
-        execute!(stdout(),Clear(ClearType::UntilNewLine))?;
+        if y == size.rows / 3 {
+            let welcome = format!("e -- version {}", env!("CARGO_PKG_VERSION"));
+            let padding = (size.columns as usize - welcome.len()) / 2;
+            if padding > 0 {
+                write!(fd, "~")?;
+                for _ in 0..padding - 1 {
+                    write!(fd, " ")?;
+                }
+                write!(fd, "{}", welcome)?;
+            }
+        } else {
+            write!(fd, "~")?;
+        }
+
+        execute!(fd, Clear(ClearType::UntilNewLine))?;
 
         if y < size.rows - 1 {
-            write!(stdout(), "\r\n")?;
+            write!(fd, "\r\n")?;
         }
     }
 

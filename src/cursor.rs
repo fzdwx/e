@@ -1,6 +1,7 @@
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{window_size, WindowSize};
+use crate::editor::TermSize;
 
 pub struct Cursor {
     /// column
@@ -12,11 +13,11 @@ pub struct Cursor {
 }
 
 impl Cursor {
-    pub(crate) fn scroll(&mut self, size: &WindowSize) {
+    pub(crate) fn scroll(&mut self, size: &TermSize) {
         if self.y < self.row_offset {
             self.row_offset = self.y;
-        } else if self.y >= self.row_offset + size.rows as usize {
-            self.row_offset = self.y - size.rows as usize + 1;
+        } else if self.y >= self.row_offset + size.rows {
+            self.row_offset = self.y - size.rows + 1;
         }
     }
 }

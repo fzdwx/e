@@ -21,6 +21,12 @@ pub struct Editor {
     cursor: cursor::Cursor,
     fd: std::io::Stdout,
     document: doc::Document,
+    size: TermSize,
+}
+
+pub struct TermSize {
+    pub rows: usize,
+    pub columns: usize,
 }
 
 impl Default for Editor {
@@ -29,6 +35,7 @@ impl Default for Editor {
             cursor: cursor::Cursor::default(),
             fd: stdout(),
             document: "Hello world".into(),
+            size: TermSize { rows: 0, columns: 0 },
         }
     }
 }
@@ -80,9 +87,12 @@ impl Editor {
                 } => {
                     return Ok(true);
                 }
-
                 _ => {}
             },
+            Event::Resize(c, r) => {
+                self.size.columns = c as usize;
+                self.size.rows = r as usize;
+            }
             _ => {}
         }
 
@@ -94,12 +104,11 @@ impl Editor {
     }
 
     async fn refresh_screen(&mut self) -> Result<()> {
-        let size = window_size()?;
-        self.cursor.scroll(&size);
+        self.cursor.scroll(&self.size);
         execute!(self.fd, Hide)?;
         execute!(self.fd, MoveTo(0, 0))?;
 
-        self.draw_rows(&size).await?;
+        self.draw_rows().await?;
 
         execute!(self.fd, MoveTo(self.cursor.x as u16, self.cursor.y as u16))?;
         execute!(self.fd, Show)?;
@@ -107,14 +116,14 @@ impl Editor {
         Ok(())
     }
 
-    async fn draw_rows(&mut self, size: &WindowSize) -> Result<()> {
+    async fn draw_rows(&mut self) -> Result<()> {
         let mut fd = stdout();
-        for y in 0..size.rows as usize {
+        for y in 0..self.size.rows {
             let current_row = y + self.cursor.row_offset;
             if current_row >= self.document.get_lines() {
-                if self.document.get_lines() == 0 && y == (size.rows / 3) as usize {
+                if self.document.get_lines() == 0 && y == (self.size.rows / 3) as usize {
                     let welcome = format!("e -- version {}", env!("CARGO_PKG_VERSION"));
-                    let padding = (size.columns as usize - welcome.len()) / 2;
+                    let padding = (self.size.columns as usize - welcome.len()) / 2;
                     if padding > 0 {
                         write!(fd, "~")?;
                         for _ in 0..padding - 1 {
@@ -132,7 +141,7 @@ impl Editor {
             }
             execute!(fd, Clear(ClearType::UntilNewLine))?;
 
-            if y < (size.rows - 1) as usize {
+            if y < (self.size.rows - 1) as usize {
                 write!(fd, "\r\n")?;
             }
         }
@@ -144,6 +153,13 @@ impl Editor {
         enable_raw_mode()?;
         execute!(self.fd, EnterAlternateScreen)?;
         execute!(self.fd, EnableMouseCapture)?;
+
+        let size = window_size()?;
+        self.size = TermSize {
+            rows: size.rows as usize,
+            columns: size.columns as usize,
+        };
+
         Ok(())
     }
 

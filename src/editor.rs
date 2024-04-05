@@ -139,6 +139,7 @@ impl Editor {
                     write!(fd, "~")?;
                 }
             } else {
+                // write!(fd, "{} ",current_row)?;
                 if let Some(line) = self.document.text.get_line(current_row) {
                     write_slices(&mut fd, line, self.cursor.col_offset)?;
                 }
@@ -155,7 +156,6 @@ impl Editor {
 
     async fn init_screen(&mut self) -> Result<()> {
         enable_raw_mode()?;
-        execute!(self.fd, EnterAlternateScreen)?;
         execute!(self.fd, EnableMouseCapture)?;
 
         let size = window_size()?;

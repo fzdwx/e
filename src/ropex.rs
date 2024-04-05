@@ -12,15 +12,22 @@ pub fn write_slices<F: Write>(f: &mut F, rope_slice: RopeSlice, col_offset: usiz
         return Ok(());
     }
 
-    let end = len - col_offset;
-    let last = len - 1;
-    for (i, c) in chars.enumerate().skip(col_offset) {
-        if i > end {
+    let mut total = len - col_offset;
+    let mut col_offset = col_offset;
+    for x in chars {
+        if x == '\n' {
             break;
         }
-        if i != last {
-            write!(f, "{}", c)?;
+        if total == 0 {
+            break;
         }
+
+        if col_offset > 0 {
+            col_offset -= 1;
+            continue;
+        }
+        total -= 1;
+        write!(f, "{}", x)?;
     }
 
     Ok(())

@@ -4,13 +4,35 @@ use crossterm::terminal::{window_size, WindowSize};
 
 pub struct Cursor {
     /// column
-    pub x: u16,
+    pub x: usize,
     /// row
-    pub y: u16,
+    pub y: usize,
+
+    pub row_offset: usize,
 }
 
 impl Cursor {
-    pub async fn react(&mut self, event: Event) -> Result<bool> {
+    pub(crate) fn scroll(&mut self, size: &WindowSize) {
+        if self.y < self.row_offset {
+            self.row_offset = self.y;
+        } else if self.y >= self.row_offset + size.rows as usize {
+            self.row_offset = self.y - size.rows as usize + 1;
+        }
+    }
+}
+
+impl Default for Cursor {
+    fn default() -> Self {
+        Self {
+            x: 0,
+            y: 0,
+            row_offset: 0,
+        }
+    }
+}
+
+impl Cursor {
+    pub async fn react(&mut self, event: Event, doc_lines: usize) -> Result<bool> {
         let size = window_size()?;
         match event {
             Event::Key(k) => match k {
@@ -18,7 +40,7 @@ impl Cursor {
                     if self.should_move_up(k) {
                         self.move_up(&size);
                     } else if self.should_move_down(k) {
-                        self.move_down(&size);
+                        self.move_down(&size, doc_lines);
                     } else if self.should_move_left(k) {
                         self.move_left(&size);
                     } else if self.should_move_right(k) {
@@ -26,7 +48,7 @@ impl Cursor {
                     } else if self.should_page_up(k) {
                         self.page_up(&size);
                     } else if self.should_page_down(k) {
-                        self.page_down(&size);
+                        self.page_down(&size, doc_lines);
                     } else if self.should_home(k) {
                         self.home(&size);
                     } else if self.should_end(k) {
@@ -46,8 +68,8 @@ impl Cursor {
         }
     }
 
-    fn move_down(&mut self, size: &WindowSize) {
-        if self.y != size.rows - 1 {
+    fn move_down(&mut self, _: &WindowSize, doc_lines: usize) {
+        if self.y < doc_lines {
             self.y += 1;
         }
     }
@@ -59,7 +81,7 @@ impl Cursor {
     }
 
     fn move_right(&mut self, size: &WindowSize) {
-        if self.x != size.columns - 1 {
+        if self.x != size.columns as usize - 1 {
             self.x += 1;
         }
     }
@@ -71,10 +93,10 @@ impl Cursor {
         }
     }
 
-    fn page_down(&mut self, size: &WindowSize) {
+    fn page_down(&mut self, size: &WindowSize, doc_lines: usize) {
         let times = size.rows / 2;
         for _ in 0..times {
-            self.move_down(size);
+            self.move_down(size, doc_lines);
         }
     }
 
@@ -83,7 +105,7 @@ impl Cursor {
     }
 
     fn end(&mut self, size: &WindowSize) {
-        self.x = size.columns - 1;
+        self.x = size.columns as usize - 1;
     }
 
     fn should_move_up(&self, k: KeyEvent) -> bool {

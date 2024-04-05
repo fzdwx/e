@@ -8,6 +8,9 @@ pub fn write_slices<F: Write>(f: &mut F, rope_slice: RopeSlice, col_offset: usiz
     if len == 0 {
         return Ok(());
     }
+    if len <= col_offset {
+        return Ok(());
+    }
 
     let end = len - col_offset;
     let last = len - 1;

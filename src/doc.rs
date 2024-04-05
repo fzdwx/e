@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::Result;
-use ropey::Rope;
+use ropey::{Rope, RopeSlice};
 
 pub struct Document {
     pub text: Rope,

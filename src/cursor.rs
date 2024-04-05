@@ -2,6 +2,8 @@ use crate::editor::TermSize;
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{window_size, WindowSize};
+use ropey::RopeSlice;
+use crate::doc::Document;
 
 pub struct Cursor {
     /// column
@@ -41,77 +43,103 @@ impl Default for Cursor {
 }
 
 impl Cursor {
-    pub async fn react(&mut self, event: Event, doc_lines: usize) -> Result<bool> {
-        let size = window_size()?;
+    pub async fn react(&mut self, event: Event, size: &TermSize, doc: &Document) -> Result<bool> {
         match event {
             Event::Key(k) => match k {
                 KeyEvent { .. } => {
                     if self.should_move_up(k) {
-                        self.move_up(&size);
+                        self.move_up(size);
                     } else if self.should_move_down(k) {
-                        self.move_down(&size, doc_lines);
+                        self.move_down(size, doc);
                     } else if self.should_move_left(k) {
-                        self.move_left(&size);
+                        self.move_left(size, doc);
                     } else if self.should_move_right(k) {
-                        self.move_right(&size);
+                        self.move_right(size, doc);
                     } else if self.should_page_up(k) {
-                        self.page_up(&size);
+                        self.page_up(size);
                     } else if self.should_page_down(k) {
-                        self.page_down(&size, doc_lines);
+                        self.page_down(size, doc);
                     } else if self.should_home(k) {
-                        self.home(&size);
+                        self.home(size);
                     } else if self.should_end(k) {
-                        self.end(&size);
+                        self.end(size);
                     }
                 }
             },
             _ => {}
         }
 
+        if let Some(line) = doc.text.get_line(self.y) {
+            let len = line.len_chars() - 1;
+            if self.x > len {
+                self.x = len;
+            }
+        }
+
         Ok(false)
     }
 
-    fn move_up(&mut self, _: &WindowSize) {
+    fn move_up(&mut self, _: &TermSize) {
         if self.y > 0 {
             self.y -= 1;
         }
     }
 
-    fn move_down(&mut self, _: &WindowSize, doc_lines: usize) {
-        if self.y < doc_lines {
+    fn move_down(&mut self, _: &TermSize, doc: &Document) {
+        if self.y < doc.get_lines() {
             self.y += 1;
         }
     }
 
-    fn move_left(&mut self, _: &WindowSize) {
-        if self.x > 0 {
+    fn move_left(&mut self, _: &TermSize, doc: &Document) {
+        if self.x != 0 {
             self.x -= 1;
+        } else if self.y > 0 {
+            self.y -= 1;
+            if let Some(line) = doc.text.get_line(self.y) {
+                self.x = line.len_chars() - 1;
+            }
         }
     }
 
-    fn move_right(&mut self, size: &WindowSize) {
-        self.x += 1;
+    fn move_right(&mut self, _: &TermSize, doc: &Document) {
+        if self.y >= doc.get_lines() - 1 {
+            return;
+        }
+        match doc.text.get_line(self.y) {
+            None => {
+                return;
+            }
+            Some(line) => {
+                if self.x < line.len_chars() - 1 {
+                    self.x += 1;
+                } else if self.x == line.len_chars() - 1 {
+                    self.x = 0;
+                    self.y += 1;
+                }
+            }
+        }
     }
 
-    fn page_up(&mut self, size: &WindowSize) {
+    fn page_up(&mut self, size: &TermSize) {
         let times = size.rows / 2;
         for _ in 0..times {
             self.move_up(size);
         }
     }
 
-    fn page_down(&mut self, size: &WindowSize, doc_lines: usize) {
+    fn page_down(&mut self, size: &TermSize, doc_lines: &Document) {
         let times = size.rows / 2;
         for _ in 0..times {
             self.move_down(size, doc_lines);
         }
     }
 
-    fn home(&mut self, _: &WindowSize) {
+    fn home(&mut self, _: &TermSize) {
         self.x = 0;
     }
 
-    fn end(&mut self, size: &WindowSize) {
+    fn end(&mut self, size: &TermSize) {
         self.x = size.columns as usize - 1;
     }
 

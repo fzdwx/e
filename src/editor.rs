@@ -98,7 +98,7 @@ impl Editor {
             _ => {}
         }
 
-        if self.cursor.react(event, self.document.get_lines()).await? {
+        if self.cursor.react(event,&self.size, &self.document).await? {
             return Ok(true);
         }
 
@@ -145,7 +145,7 @@ impl Editor {
             }
             execute!(fd, Clear(ClearType::UntilNewLine))?;
 
-            if y < (self.size.rows - 1) as usize {
+            if y < (self.size.rows - 1) {
                 write!(fd, "\r\n")?;
             }
         }

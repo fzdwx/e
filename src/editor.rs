@@ -1,25 +1,26 @@
-use std::env::args;
 use std::io::stdout;
 use std::io::Write;
+use std::path::Path;
 
 use anyhow::Result;
+use crossterm::cursor::{Hide, MoveTo, Show};
+use crossterm::event::{KeyEvent, KeyModifiers};
+use crossterm::terminal::{window_size, Clear, ClearType, EnterAlternateScreen};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use crossterm::cursor::{Hide, MoveTo, Show};
-use crossterm::event::{KeyEvent, KeyModifiers};
-use crossterm::terminal::{Clear, ClearType, EnterAlternateScreen, window_size};
 use futures::{future::FutureExt, StreamExt};
+use termion::input::TermRead;
 
-use crate::{cursor, row};
+use crate::ropex::write_slices;
+use crate::{cursor, doc, Args};
 
 pub struct Editor {
     cursor: cursor::Cursor,
     fd: std::io::Stdout,
-    row_num: usize,
-    row: row::Row<'static>,
+    document: doc::Document,
 }
 
 impl Default for Editor {
@@ -27,15 +28,17 @@ impl Default for Editor {
         Self {
             cursor: cursor::Cursor { x: 0, y: 0 },
             fd: stdout(),
-            row_num: 0,
-            row: "Hello world".into(),
+            document: "Hello world".into(),
         }
     }
 }
 
 impl Editor {
-    pub async fn react() -> Result<()> {
+    pub async fn react(args: &Args) -> Result<()> {
         let mut editor = Self::default();
+        if args.file.is_some() {
+            editor.open(args.file.as_ref().unwrap().as_path()).await?;
+        }
 
         editor.init_screen().await?;
 
@@ -106,8 +109,8 @@ impl Editor {
         let size = window_size()?;
         let mut fd = stdout();
         for y in 0..size.rows as usize {
-            if y > self.row_num {
-                if y == (size.rows / 3) as usize {
+            if y >= self.document.get_lines() {
+                if self.document.get_lines() == 0 && y == (size.rows / 3) as usize {
                     let welcome = format!("e -- version {}", env!("CARGO_PKG_VERSION"));
                     let padding = (size.columns as usize - welcome.len()) / 2;
                     if padding > 0 {
@@ -121,11 +124,9 @@ impl Editor {
                     write!(fd, "~")?;
                 }
             } else {
-                let mut len = self.row.width();
-                if len > size.columns as usize {
-                    len = size.columns as usize;
+                if let Some(line) = self.document.text.get_line(y) {
+                    write_slices(&mut fd, line)?;
                 }
-                write!(fd, "{}", &self.row.content[..len])?;
             }
             execute!(fd, Clear(ClearType::UntilNewLine))?;
 
@@ -148,6 +149,11 @@ impl Editor {
         execute!(self.fd, DisableMouseCapture)?;
         execute!(self.fd, Clear(ClearType::All))?;
         disable_raw_mode()?;
+        Ok(())
+    }
+
+    async fn open(&mut self, p: &Path) -> Result<()> {
+        self.document = doc::Document::open(p)?;
         Ok(())
     }
 }

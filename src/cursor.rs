@@ -9,7 +9,6 @@ pub struct Cursor {
     pub y: u16,
 }
 
-
 impl Cursor {
     pub async fn react(&mut self, event: Event) -> Result<bool> {
         let size = window_size()?;
@@ -100,7 +99,8 @@ impl Cursor {
     }
 
     fn should_move_right(&self, k: KeyEvent) -> bool {
-        k.code == KeyCode::Char('d') && k.modifiers == KeyModifiers::NONE || k.code == KeyCode::Right
+        k.code == KeyCode::Char('d') && k.modifiers == KeyModifiers::NONE
+            || k.code == KeyCode::Right
     }
 
     fn should_page_up(&self, k: KeyEvent) -> bool {

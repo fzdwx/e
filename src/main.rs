@@ -14,6 +14,7 @@ async fn main() -> anyhow::Result<()> {
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
+#[warn(private_interfaces)]
 struct Args {
     /// The path to the file to open
     file: Option<PathBuf>,

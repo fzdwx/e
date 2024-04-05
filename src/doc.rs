@@ -1,7 +1,7 @@
-use anyhow::Result;
-use ropey::{Rope, RopeBuilder};
-use std::fmt::Display;
 use std::path::Path;
+
+use anyhow::Result;
+use ropey::Rope;
 
 pub struct Document {
     pub text: Rope,

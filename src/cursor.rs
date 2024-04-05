@@ -1,7 +1,7 @@
+use crate::editor::TermSize;
 use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{window_size, WindowSize};
-use crate::editor::TermSize;
 
 pub struct Cursor {
     /// column
@@ -10,6 +10,7 @@ pub struct Cursor {
     pub y: usize,
 
     pub row_offset: usize,
+    pub col_offset: usize,
 }
 
 impl Cursor {
@@ -18,6 +19,12 @@ impl Cursor {
             self.row_offset = self.y;
         } else if self.y >= self.row_offset + size.rows {
             self.row_offset = self.y - size.rows + 1;
+        }
+
+        if self.x < self.col_offset {
+            self.col_offset = self.x;
+        } else if self.x >= self.col_offset + size.columns {
+            self.col_offset = self.x - size.columns + 1;
         }
     }
 }
@@ -28,6 +35,7 @@ impl Default for Cursor {
             x: 0,
             y: 0,
             row_offset: 0,
+            col_offset: 0,
         }
     }
 }
@@ -82,9 +90,7 @@ impl Cursor {
     }
 
     fn move_right(&mut self, size: &WindowSize) {
-        if self.x != size.columns as usize - 1 {
-            self.x += 1;
-        }
+        self.x += 1;
     }
 
     fn page_up(&mut self, size: &WindowSize) {

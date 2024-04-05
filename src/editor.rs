@@ -5,14 +5,13 @@ use std::path::Path;
 use anyhow::Result;
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::event::{KeyEvent, KeyModifiers};
-use crossterm::terminal::{window_size, Clear, ClearType, EnterAlternateScreen, WindowSize};
+use crossterm::terminal::{window_size, Clear, ClearType, EnterAlternateScreen};
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode},
 };
 use futures::{future::FutureExt, StreamExt};
-use termion::input::TermRead;
 
 use crate::ropex::write_slices;
 use crate::{cursor, doc, Args};
@@ -35,7 +34,10 @@ impl Default for Editor {
             cursor: cursor::Cursor::default(),
             fd: stdout(),
             document: "Hello world".into(),
-            size: TermSize { rows: 0, columns: 0 },
+            size: TermSize {
+                rows: 0,
+                columns: 0,
+            },
         }
     }
 }
@@ -110,7 +112,9 @@ impl Editor {
 
         self.draw_rows().await?;
 
-        execute!(self.fd, MoveTo(self.cursor.x as u16, self.cursor.y as u16))?;
+        execute!(self.fd, MoveTo(
+            (self.cursor.x - self.cursor.col_offset) as u16,
+            (self.cursor.y - self.cursor.row_offset) as u16))?;
         execute!(self.fd, Show)?;
 
         Ok(())
@@ -123,7 +127,7 @@ impl Editor {
             if current_row >= self.document.get_lines() {
                 if self.document.get_lines() == 0 && y == (self.size.rows / 3) as usize {
                     let welcome = format!("e -- version {}", env!("CARGO_PKG_VERSION"));
-                    let padding = (self.size.columns as usize - welcome.len()) / 2;
+                    let padding = (self.size.columns - welcome.len()) / 2;
                     if padding > 0 {
                         write!(fd, "~")?;
                         for _ in 0..padding - 1 {
@@ -136,7 +140,7 @@ impl Editor {
                 }
             } else {
                 if let Some(line) = self.document.text.get_line(current_row) {
-                    write_slices(&mut fd, line)?;
+                    write_slices(&mut fd, line, self.cursor.col_offset)?;
                 }
             }
             execute!(fd, Clear(ClearType::UntilNewLine))?;

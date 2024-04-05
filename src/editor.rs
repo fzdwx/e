@@ -1,3 +1,4 @@
+use std::env::args;
 use std::io::stdout;
 use std::io::Write;
 
@@ -12,11 +13,13 @@ use crossterm::event::{KeyEvent, KeyModifiers};
 use crossterm::terminal::{Clear, ClearType, EnterAlternateScreen, window_size};
 use futures::{future::FutureExt, StreamExt};
 
-use crate::cursor;
+use crate::{cursor, row};
 
 pub struct Editor {
     cursor: cursor::Cursor,
     fd: std::io::Stdout,
+    row_num: usize,
+    row: row::Row<'static>,
 }
 
 impl Default for Editor {
@@ -24,6 +27,8 @@ impl Default for Editor {
         Self {
             cursor: cursor::Cursor { x: 0, y: 0 },
             fd: stdout(),
+            row_num: 0,
+            row: "Hello world".into(),
         }
     }
 }
@@ -100,24 +105,31 @@ impl Editor {
     async fn draw_rows(&mut self) -> Result<()> {
         let size = window_size()?;
         let mut fd = stdout();
-        for y in 0..size.rows {
-            if y == size.rows / 3 {
-                let welcome = format!("e -- version {}", env!("CARGO_PKG_VERSION"));
-                let padding = (size.columns as usize - welcome.len()) / 2;
-                if padding > 0 {
-                    write!(fd, "~")?;
-                    for _ in 0..padding - 1 {
-                        write!(fd, " ")?;
+        for y in 0..size.rows as usize {
+            if y > self.row_num {
+                if y == (size.rows / 3) as usize {
+                    let welcome = format!("e -- version {}", env!("CARGO_PKG_VERSION"));
+                    let padding = (size.columns as usize - welcome.len()) / 2;
+                    if padding > 0 {
+                        write!(fd, "~")?;
+                        for _ in 0..padding - 1 {
+                            write!(fd, " ")?;
+                        }
+                        write!(fd, "{}", welcome)?;
                     }
-                    write!(fd, "{}", welcome)?;
+                } else {
+                    write!(fd, "~")?;
                 }
             } else {
-                write!(fd, "~")?;
+                let mut len = self.row.width();
+                if len > size.columns as usize {
+                    len = size.columns as usize;
+                }
+                write!(fd, "{}", &self.row.content[..len])?;
             }
-
             execute!(fd, Clear(ClearType::UntilNewLine))?;
 
-            if y < size.rows - 1 {
+            if y < (size.rows - 1) as usize {
                 write!(fd, "\r\n")?;
             }
         }
